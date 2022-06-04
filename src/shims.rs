@@ -69,6 +69,7 @@ fn get_shim_file_path(current_exe: String) -> Result<PathBuf, ShimError> {
     }
 }
 
+#[inline]
 fn unquote(val: &str) -> String {
     val.replacen('"', "", 1)
         .chars()
