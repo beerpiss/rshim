@@ -2,17 +2,23 @@
 name = "rshim"
 version = "0.1.0"
 authors = ["anonymous <anonymous@example.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 
 [profile.release]
 opt-level = "z"
 panic = "abort"
+debug = false
+lto = true
+strip = true
+codegen-units = 1
+incremental = false 
+
 [dependencies]
-fs-err = "2.5.0"
 unicode-bom = "1"
+rustc-hash = "1.1.0"
+libc = "0.2.126"
 
 [dependencies.winapi]
 version = "0.3"
