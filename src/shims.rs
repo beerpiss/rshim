@@ -105,7 +105,10 @@ fn parse_shim_file(shim_path: &Path) -> Result<FxHashMap<String, String>, ShimEr
             None => {
                 let mut description = String::from("invaid line in shim file: ");
                 description.push_str(line);
-                return Err(ShimError { reason: ShimErrorKind::InvalidData, description });
+                return Err(ShimError {
+                    reason: ShimErrorKind::InvalidData,
+                    description,
+                });
             }
         };
         let value = match components.next() {
@@ -113,7 +116,10 @@ fn parse_shim_file(shim_path: &Path) -> Result<FxHashMap<String, String>, ShimEr
             None => {
                 let mut description = String::from("invaid line in shim file: ");
                 description.push_str(line);
-                return Err(ShimError { reason: ShimErrorKind::InvalidData, description });
+                return Err(ShimError {
+                    reason: ShimErrorKind::InvalidData,
+                    description,
+                });
             }
         };
         kvs.insert(key, value);
