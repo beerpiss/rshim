@@ -1,8 +1,8 @@
 [build]
 target = "x86_64-pc-windows-msvc"
 
-# [target.x86_64-pc-windows-msvc]
-# rustflags = ["-Ctarget-feature=+crt-static"]
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-Ctarget-feature=+crt-static"]
 
 [unstable]
 build-std = ["std", "panic_abort"]
