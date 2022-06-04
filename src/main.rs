@@ -30,6 +30,13 @@ use winapi::{
     },
 };
 
+const EXIT_FAILED_LOAD_SHIM: i32 = 1;
+const EXIT_FAILED_SPAWN_PROG: i32 = 2;
+const EXIT_FAILED_WAIT_PROG: i32 = 3;
+const EXIT_PROG_TERMINATED: i32 = 4;
+
+const ERROR_ELEVATION_REQUIRED: i32 = 740;
+
 unsafe extern "system" fn routine_handler(evt: DWORD) -> BOOL {
     match evt {
         wincon::CTRL_C_EVENT => TRUE,
@@ -49,12 +56,58 @@ unsafe extern "system" fn routine_handler(evt: DWORD) -> BOOL {
     }
 }
 
-const EXIT_FAILED_LOAD_SHIM: i32 = 1;
-const EXIT_FAILED_SPAWN_PROG: i32 = 2;
-const EXIT_FAILED_WAIT_PROG: i32 = 3;
-const EXIT_PROG_TERMINATED: i32 = 4;
+fn execute(program: &Path, verb: &str, args: &[String]) -> i32 {
+    let runas = CString::new(verb).unwrap();
+    let program = CString::new(program.to_str().unwrap()).unwrap();
+    let mut params = String::new();
+    for arg in args.iter() {
+        params.push(' ');
+        if arg.is_empty() {
+            params.push_str("\"\"");
+        } else if arg.find(&[' ', '\t', '"'][..]).is_none() {
+            params.push_str(arg);
+        } else {
+            params.push('"');
+            for c in arg.chars() {
+                match c {
+                    '\\' => params.push_str("\\\\"),
+                    '"' => params.push_str("\\\""),
+                    c => params.push(c),
+                }
+            }
+            params.push('"');
+        }
+    }
 
-const ERROR_ELEVATION_REQUIRED: i32 = 740;
+    let params = CString::new(&params[..]).unwrap();
+    let mut info = SHELLEXECUTEINFOA {
+        cbSize: size_of::<SHELLEXECUTEINFOA>() as DWORD,
+        fMask: SEE_MASK_NOASYNC | SEE_MASK_NOCLOSEPROCESS,
+        lpVerb: runas.as_ptr(),
+        lpFile: program.as_ptr(),
+        lpParameters: params.as_ptr(),
+        nShow: SW_NORMAL,
+        ..Default::default()
+    };
+    let res = unsafe {
+        CoInitializeEx(
+            null_mut(),
+            COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE,
+        );
+        ShellExecuteExA(&mut info as *mut _)
+    };
+    if res == FALSE || info.hProcess.is_null() {
+        return EXIT_FAILED_SPAWN_PROG;
+    }
+    let mut code: DWORD = 0;
+    unsafe {
+        WaitForSingleObject(info.hProcess, INFINITE);
+        if GetExitCodeProcess(info.hProcess, &mut code as *mut _) == FALSE {
+            return EXIT_FAILED_WAIT_PROG;
+        }
+    }
+    code as i32
+}
 
 #[no_mangle]
 pub fn main(argc: isize, argv: *const *const i8) {
@@ -117,57 +170,4 @@ pub fn main(argc: isize, argv: *const *const i8) {
         }
     };
     exit(status.code().unwrap_or(EXIT_PROG_TERMINATED))
-}
-
-fn execute(program: &Path, verb: &str, args: &[String]) -> i32 {
-    let runas = CString::new(verb).unwrap();
-    let program = CString::new(program.to_str().unwrap()).unwrap();
-    let mut params = String::new();
-    for arg in args.iter() {
-        params.push(' ');
-        if arg.is_empty() {
-            params.push_str("\"\"");
-        } else if arg.find(&[' ', '\t', '"'][..]).is_none() {
-            params.push_str(arg);
-        } else {
-            params.push('"');
-            for c in arg.chars() {
-                match c {
-                    '\\' => params.push_str("\\\\"),
-                    '"' => params.push_str("\\\""),
-                    c => params.push(c),
-                }
-            }
-            params.push('"');
-        }
-    }
-
-    let params = CString::new(&params[..]).unwrap();
-    let mut info = SHELLEXECUTEINFOA {
-        cbSize: size_of::<SHELLEXECUTEINFOA>() as DWORD,
-        fMask: SEE_MASK_NOASYNC | SEE_MASK_NOCLOSEPROCESS,
-        lpVerb: runas.as_ptr(),
-        lpFile: program.as_ptr(),
-        lpParameters: params.as_ptr(),
-        nShow: SW_NORMAL,
-        ..Default::default()
-    };
-    let res = unsafe {
-        CoInitializeEx(
-            null_mut(),
-            COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE,
-        );
-        ShellExecuteExA(&mut info as *mut _)
-    };
-    if res == FALSE || info.hProcess.is_null() {
-        return EXIT_FAILED_SPAWN_PROG;
-    }
-    let mut code: DWORD = 0;
-    unsafe {
-        WaitForSingleObject(info.hProcess, INFINITE);
-        if GetExitCodeProcess(info.hProcess, &mut code as *mut _) == FALSE {
-            return EXIT_FAILED_WAIT_PROG;
-        }
-    }
-    code as i32
 }
