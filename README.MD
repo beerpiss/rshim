@@ -18,7 +18,8 @@ There are several versions of `shim`:
 - properly handle utf-8 with or without bom in shim file.
 
 ### Differences from upstream `rshim`
-- reduced binary size massively (160KB static compared to 300KB)
+- relies heavily on Win32 API, moreso than the original
+- reduced binary size massively (134KB static compared to 300KB)
 - handle quoted strings
 - some slight speed improvements
 
@@ -33,6 +34,10 @@ Close any running process with existing shims, then
 ./repshims.bat
 ```
 
+## Roadmap
+- [ ] remove `core::fmt` entirely
+- [ ] make it run with `#![no_std]`
+
 ## Executable Size
-- Without `crt-static` enabled: around 81KB
-- With `crt-static` enabled: around 168KB
+- Without `crt-static` enabled: around 48KB
+- With `crt-static` enabled: around 134KB

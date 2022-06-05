@@ -1,10 +1,5 @@
 use rustc_hash::FxHashMap;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    result::Result,
-    string::ToString,
-};
+use std::{fs, result::Result, string::ToString};
 use unicode_bom::Bom;
 
 pub struct ShimError {
@@ -26,19 +21,19 @@ pub enum ShimErrorKind {
 }
 
 pub struct Shim {
-    pub target_path: PathBuf,
+    pub target_path: String,
     pub args: Option<Vec<String>>,
 }
 
 impl Shim {
     pub fn init(current_exe: String) -> Result<Self, ShimError> {
         let shim_path = get_shim_file_path(current_exe)?;
-        let kvs = parse_shim_file(&shim_path)?;
+        let kvs = parse_shim_file(shim_path.clone())?;
         let target_path = match kvs.get("path") {
-            Some(p) => PathBuf::from(p),
+            Some(p) => p.to_owned(),
             None => {
                 let mut err = String::from("no path key in ");
-                err.push_str(&shim_path.to_string_lossy());
+                err.push_str(&shim_path);
                 return Err(ShimError {
                     reason: ShimErrorKind::NotFound,
                     description: err,
@@ -54,11 +49,13 @@ impl Shim {
     }
 }
 
-#[inline]
-fn get_shim_file_path(current_exe: String) -> Result<PathBuf, ShimError> {
-    let mut current_exe = PathBuf::from(current_exe);
-    if !current_exe.set_extension("shim") {
-        let mut err: String = current_exe.to_string_lossy().into();
+fn get_shim_file_path(current_exe: String) -> Result<String, ShimError> {
+    let mut split = current_exe.split('.').collect::<Vec<&str>>();
+    let split_len = split.len();
+    split[split_len - 1] = "shim";
+    let current_exe = split.join(".");
+    if !fs::metadata(current_exe.clone()).is_ok() {
+        let mut err: String = current_exe.clone();
         err.push_str(" is not a file");
         Err(ShimError {
             reason: ShimErrorKind::Other,
@@ -69,24 +66,26 @@ fn get_shim_file_path(current_exe: String) -> Result<PathBuf, ShimError> {
     }
 }
 
-#[inline]
-fn unquote(val: &str) -> String {
-    val.replacen('"', "", 1)
-        .chars()
-        .rev()
-        .collect::<String>()
-        .replacen('"', "", 1)
-        .chars()
-        .rev()
-        .collect::<String>()
+macro_rules! unquote {
+    ($string:expr) => {{
+        $string
+            .replacen('"', "", 1)
+            .chars()
+            .rev()
+            .collect::<String>()
+            .replacen('"', "", 1)
+            .chars()
+            .rev()
+            .collect::<String>()
+    }};
 }
 
-fn parse_shim_file(shim_path: &Path) -> Result<FxHashMap<String, String>, ShimError> {
+fn parse_shim_file(shim_path: String) -> Result<FxHashMap<String, String>, ShimError> {
     let mut kvs = FxHashMap::default();
 
-    let raw_content = fs::read_to_string(shim_path).map_err(|e| {
+    let raw_content = fs::read_to_string(shim_path.clone()).map_err(|e| {
         let mut err = String::from("reading ");
-        err.push_str(&shim_path.to_string_lossy());
+        err.push_str(&shim_path);
         err.push_str(": ");
         err.push_str(&e.to_string());
         ShimError {
@@ -102,7 +101,7 @@ fn parse_shim_file(shim_path: &Path) -> Result<FxHashMap<String, String>, ShimEr
     {
         let mut components = line.split('=');
         let key = match components.next() {
-            Some(k) => unquote(k.trim()),
+            Some(k) => unquote!(k.trim()),
             None => {
                 let mut description = String::from("invaid line in shim file: ");
                 description.push_str(line);
@@ -113,7 +112,7 @@ fn parse_shim_file(shim_path: &Path) -> Result<FxHashMap<String, String>, ShimEr
             }
         };
         let value = match components.next() {
-            Some(v) => unquote(v.trim()),
+            Some(v) => unquote!(v.trim()),
             None => {
                 let mut description = String::from("invaid line in shim file: ");
                 description.push_str(line);
